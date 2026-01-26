@@ -29,7 +29,7 @@ help: ## Print help
 TOKENIZER_LIB = lib/libtokenizers.a
 
 # Extract RELEASE_VERSION from Dockerfile
-TOKENIZER_VERSION := $(shell grep '^ARG RELEASE_VERSION=' Dockerfile | cut -d'=' -f2)
+TOKENIZER_VERSION ?= $(shell grep '^ARG RELEASE_VERSION=' Dockerfile | cut -d'=' -f2)
 
 .PHONY: download-tokenizer
 download-tokenizer: $(TOKENIZER_LIB)
@@ -116,7 +116,7 @@ detect-python: ## Detects Python and prints the configuration.
 .PHONY: setup-venv
 setup-venv: detect-python ## Sets up the Python virtual environment.
 	@printf "\033[33;1m==== Setting up Python virtual environment in $(VENV_DIR) ====\033[0m\n"
-	@if [ ! -f "$(VENV_BIN)/pip" ]; then \
+	@if [ ! -f "$(VENV_BIN)/python" ]; then \
 		echo "Creating virtual environment..."; \
 		$(PYTHON_EXE) -m venv $(VENV_DIR) || { \
 			echo "ERROR: Failed to create virtual environment."; \
@@ -132,17 +132,15 @@ setup-venv: detect-python ## Sets up the Python virtual environment.
 .PHONY: install-python-deps
 install-python-deps: setup-venv ## installs dependencies.
 	@printf "\033[33;1m==== Setting up Python virtual environment in $(VENV_DIR) ====\033[0m\n"
-	@if [ ! -f "$(VENV_BIN)/pip" ]; then \
-		echo "Creating virtual environment..."; \
-		$(PYTHON_EXE) -m venv $(VENV_DIR) || { \
-			echo "ERROR: Failed to create virtual environment."; \
-			echo "Your Python installation may be missing the 'venv' module."; \
-			echo "Try: 'sudo apt install python$(PYTHON_VERSION)-venv' or 'sudo dnf install python$(PYTHON_VERSION)-devel'"; \
-			exit 1; \
-		}; \
+	@if [ ! -f "$(VENV_BIN)/python" ]; then \
+		echo "ERROR: Virtual environment not found. Run 'make setup-venv' first."; \
+		exit 1; \
 	fi
-	@echo "Upgrading pip and installing dependencies..."
-	
+	@if $(VENV_BIN)/python -c "import vllm" 2>/dev/null; then \
+		echo "vllm is already installed, skipping..."; \
+		exit 0; \
+	fi
+	@echo "Installing vllm..."
 	@if [ "$(TARGETOS)" = "linux" ]; then \
 		if [ "$(TARGETARCH)" = "amd64" ]; then \
 			echo "Installing vLLM pre-built wheel for x86_64..."; \
